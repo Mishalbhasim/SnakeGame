@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// Central game state controller: tracks score, listens for the snake's
@@ -12,6 +12,9 @@ public class GameManager : MonoBehaviour
     [Header("References")]
     [Tooltip("Drag the Snake GameObject here")]
     public SnakeController snakeController;
+
+    [Tooltip("Drag the FoodSpawner GameObject here")]
+    public FoodSpawner foodSpawner;
 
     [Header("Scoring")]
     [Tooltip("Points awarded per food eaten")]
@@ -34,17 +37,33 @@ public class GameManager : MonoBehaviour
     {
         SnakeController.OnFoodEaten += HandleFoodEaten;
         SnakeController.OnSnakeDied += HandleSnakeDied;
+        FoodSpawner.OnGridFull += HandleGridFull;
     }
 
     private void OnDisable()
     {
         SnakeController.OnFoodEaten -= HandleFoodEaten;
         SnakeController.OnSnakeDied -= HandleSnakeDied;
+        FoodSpawner.OnGridFull -= HandleGridFull;
     }
 
     private void Start()
     {
-        StartNewGame();
+        // Don't auto-start the game anymore - the Main Menu is shown first
+        // (handled by UIManager.Start -> ShowMainMenu). The snake/food are
+        // still reset once so they're in a valid state sitting behind the menu.
+        IsGameOver = true;
+        CurrentScore = 0;
+
+        if (snakeController != null)
+        {
+            snakeController.ResetSnake();
+        }
+
+        if (foodSpawner != null)
+        {
+            foodSpawner.ResetSpawner();
+        }
     }
 
     /// <summary>
@@ -64,6 +83,11 @@ public class GameManager : MonoBehaviour
         if (snakeController != null)
         {
             snakeController.ResetSnake();
+        }
+
+        if (foodSpawner != null)
+        {
+            foodSpawner.ResetSpawner();
         }
 
         Time.timeScale = 1f;
@@ -89,7 +113,24 @@ public class GameManager : MonoBehaviour
 
         if (UIManager.Instance != null)
         {
-            UIManager.Instance.ShowGameOver(CurrentScore);
+            UIManager.Instance.ShowGameOver(CurrentScore, false);
+        }
+    }
+
+    /// <summary>
+    /// Called when the snake fills every cell on the grid - the win condition.
+    /// Still ends the game and still shows/submits the final score, just with a
+    /// different message than a death.
+    /// </summary>
+    private void HandleGridFull()
+    {
+        if (IsGameOver) return;
+
+        IsGameOver = true;
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowGameOver(CurrentScore, true);
         }
     }
 
