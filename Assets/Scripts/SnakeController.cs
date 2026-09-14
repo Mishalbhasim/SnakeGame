@@ -16,8 +16,8 @@ public class SnakeController : MonoBehaviour
     [Tooltip("Starting length of the snake")]
     public int startLength = 3;
 
-    [Tooltip("Starting grid position of the head")]
-    public Vector2Int startPosition = new Vector2Int(10, 10);
+    [Tooltip("Starting grid position of the head. If left as (0,0), the snake auto-centers on the grid instead.")]
+    public Vector2Int startPosition = Vector2Int.zero;
 
     [Header("Movement")]
     [Tooltip("Seconds between each grid move. Lower = faster snake.")]
@@ -63,10 +63,19 @@ public class SnakeController : MonoBehaviour
         isDead = false;
         moveTimer = 0f;
 
+        // Auto-center on the grid if startPosition wasn't explicitly set, so this
+        // works correctly regardless of the grid's width/height (e.g. testing on a
+        // small 4x4 grid vs. the real 20x20 grid).
+        Vector2Int spawnPos = startPosition;
+        if (spawnPos == Vector2Int.zero)
+        {
+            spawnPos = new Vector2Int(GridSystem.Instance.width / 2, GridSystem.Instance.height / 2);
+        }
+
         // Build initial segments extending to the left of the start position
         for (int i = 0; i < startLength; i++)
         {
-            Vector2Int gridPos = new Vector2Int(startPosition.x - i, startPosition.y);
+            Vector2Int gridPos = new Vector2Int(spawnPos.x - i, spawnPos.y);
             GameObject segObj = Instantiate(segmentPrefab, transform);
             segObj.transform.position = GridSystem.Instance.GridToWorld(gridPos);
 
@@ -91,7 +100,8 @@ public class SnakeController : MonoBehaviour
 
     private void HandleInput()
     {
-        // Basic WASD / Arrow key input. Prevents reversing directly into itself.
+        // Keyboard input, kept so testing in the Editor still works without touch.
+        // Prevents reversing directly into itself.
         if ((Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) && direction != Vector2Int.down)
             pendingDirection = Vector2Int.up;
         else if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && direction != Vector2Int.up)
@@ -100,6 +110,30 @@ public class SnakeController : MonoBehaviour
             pendingDirection = Vector2Int.left;
         else if ((Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) && direction != Vector2Int.left)
             pendingDirection = Vector2Int.right;
+    }
+
+    // --- On-screen D-pad button hooks ---
+    // Wire these to the OnClick() event of 4 UI buttons (Up/Down/Left/Right).
+    // Each ignores the press if it would mean reversing directly into the snake's own body.
+
+    public void OnUpPressed()
+    {
+        if (direction != Vector2Int.down) pendingDirection = Vector2Int.up;
+    }
+
+    public void OnDownPressed()
+    {
+        if (direction != Vector2Int.up) pendingDirection = Vector2Int.down;
+    }
+
+    public void OnLeftPressed()
+    {
+        if (direction != Vector2Int.right) pendingDirection = Vector2Int.left;
+    }
+
+    public void OnRightPressed()
+    {
+        if (direction != Vector2Int.left) pendingDirection = Vector2Int.right;
     }
 
     private void Move()
