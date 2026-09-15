@@ -46,23 +46,56 @@ public class SnakeController : MonoBehaviour
     }
 
     /// <summary>
-    /// Resets the snake to its starting state. Called at game start and on restart.
+    /// Resets the snake to its starting state. Called at game start and on restart
+    /// (a full reset - score is handled separately by GameManager).
     /// </summary>
     public void ResetSnake()
     {
-        // Clean up any existing segments (used on restart)
-        foreach (var seg in segments)
-        {
-            if (seg != null) Destroy(seg.gameObject);
-        }
-        segments.Clear();
-        segmentGridPositions.Clear();
+        ClearSegments();
 
         direction = Vector2Int.right;
         pendingDirection = Vector2Int.right;
         isDead = false;
         moveTimer = 0f;
 
+        BuildBodyAtSafeSpawn();
+    }
+
+    /// <summary>
+    /// Respawns the snake after a rewarded "revive" ad, WITHOUT resetting score
+    /// (GameManager keeps the score as-is). Shrinks back to starting length and
+    /// moves to a safe, centered spawn position so it doesn't instantly die again.
+    /// </summary>
+    public void Revive()
+    {
+        ClearSegments();
+
+        direction = Vector2Int.right;
+        pendingDirection = Vector2Int.right;
+        isDead = false;
+        moveTimer = 0f;
+
+        BuildBodyAtSafeSpawn();
+
+        // Existing food may now overlap the newly-placed body - make sure it doesn't.
+        if (FoodSpawner.Instance != null)
+        {
+            FoodSpawner.Instance.SpawnFood(segmentGridPositions);
+        }
+    }
+
+    private void ClearSegments()
+    {
+        foreach (var seg in segments)
+        {
+            if (seg != null) Destroy(seg.gameObject);
+        }
+        segments.Clear();
+        segmentGridPositions.Clear();
+    }
+
+    private void BuildBodyAtSafeSpawn()
+    {
         // Auto-center on the grid if startPosition wasn't explicitly set, so this
         // works correctly regardless of the grid's width/height (e.g. testing on a
         // small 4x4 grid vs. the real 20x20 grid).

@@ -47,10 +47,14 @@ public class AdsManager : MonoBehaviour
 
     private void InitializeAds()
     {
+        Debug.Log("AdsManager: about to call LevelPlay.Init()");
+
         LevelPlay.OnInitSuccess += OnInitSuccess;
         LevelPlay.OnInitFailed += OnInitFailed;
 
         LevelPlay.Init(appKey);
+
+        Debug.Log("AdsManager: LevelPlay.Init() call completed (this doesn't mean init succeeded, just that the call was made)");
     }
 
     private void OnInitSuccess(LevelPlayConfiguration config)
@@ -77,7 +81,7 @@ public class AdsManager : MonoBehaviour
         rewardedAd.OnAdLoaded += (LevelPlayAdInfo info) => Debug.Log("Rewarded ad loaded.");
         rewardedAd.OnAdLoadFailed += (LevelPlayAdError error) => Debug.LogWarning("Rewarded ad failed to load: " + error);
         rewardedAd.OnAdRewarded += (LevelPlayAdInfo info, LevelPlayReward reward) => OnRevivedGranted?.Invoke();
-        rewardedAd.OnAdDisplayFailed += (LevelPlayAdDisplayInfoError error) => Debug.LogWarning("Rewarded ad failed to show: " + error);
+        rewardedAd.OnAdDisplayFailed += (LevelPlayAdInfo info, LevelPlayAdError error) => Debug.LogWarning("Rewarded ad failed to show: " + error);
 
         rewardedAd.LoadAd();
     }
