@@ -1,12 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Controls the snake: grid-based movement on a fixed tick, growth on eating,
-/// and collision detection (walls + self).
-/// Attach to an empty GameObject called "Snake" in the scene.
-/// Assign the SnakeSegment prefab in the Inspector.
-/// </summary>
+
 public class SnakeController : MonoBehaviour
 {
     [Header("Setup")]
@@ -45,10 +40,6 @@ public class SnakeController : MonoBehaviour
         ResetSnake();
     }
 
-    /// <summary>
-    /// Resets the snake to its starting state. Called at game start and on restart
-    /// (a full reset - score is handled separately by GameManager).
-    /// </summary>
     public void ResetSnake()
     {
         ClearSegments();
@@ -61,11 +52,7 @@ public class SnakeController : MonoBehaviour
         BuildBodyAtSafeSpawn();
     }
 
-    /// <summary>
-    /// Respawns the snake after a rewarded "revive" ad, WITHOUT resetting score
-    /// (GameManager keeps the score as-is). Shrinks back to starting length and
-    /// moves to a safe, centered spawn position so it doesn't instantly die again.
-    /// </summary>
+
     public void Revive()
     {
         ClearSegments();
@@ -133,7 +120,7 @@ public class SnakeController : MonoBehaviour
 
     private void HandleInput()
     {
-        // Keyboard input, kept so testing in the Editor still works without touch.
+        // Keyboard input for testing
         // Prevents reversing directly into itself.
         if ((Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) && direction != Vector2Int.down)
             pendingDirection = Vector2Int.up;
@@ -145,9 +132,7 @@ public class SnakeController : MonoBehaviour
             pendingDirection = Vector2Int.right;
     }
 
-    // --- On-screen D-pad button hooks ---
-    // Wire these to the OnClick() event of 4 UI buttons (Up/Down/Left/Right).
-    // Each ignores the press if it would mean reversing directly into the snake's own body.
+ 
 
     public void OnUpPressed()
     {
@@ -176,14 +161,14 @@ public class SnakeController : MonoBehaviour
         Vector2Int currentHeadPos = segmentGridPositions[0];
         Vector2Int newHeadPos = currentHeadPos + direction;
 
-        // --- Wall collision ---
+        //Wall collision
         if (!GridSystem.Instance.IsInsideGrid(newHeadPos))
         {
             Die();
             return;
         }
 
-        // --- Self collision ---
+        // Self collision 
         for (int i = 0; i < segmentGridPositions.Count; i++)
         {
             if (segmentGridPositions[i] == newHeadPos)
@@ -218,10 +203,7 @@ public class SnakeController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Checks whether there is food at the given grid position via FoodSpawner,
-    /// and if so, tells the spawner to respawn it elsewhere.
-    /// </summary>
+
     private bool CheckFoodAt(Vector2Int gridPos)
     {
         if (FoodSpawner.Instance == null) return false;
@@ -240,9 +222,7 @@ public class SnakeController : MonoBehaviour
         OnSnakeDied?.Invoke();
     }
 
-    /// <summary>
-    /// Exposes current occupied cells, e.g. so FoodSpawner avoids spawning on the snake.
-    /// </summary>
+
     public List<Vector2Int> GetOccupiedCells()
     {
         return segmentGridPositions;

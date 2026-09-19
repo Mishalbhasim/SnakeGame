@@ -1,11 +1,7 @@
 using UnityEngine;
 using Unity.Services.LevelPlay;
 
-/// <summary>
-/// Handles all ad logic: SDK initialization, a rewarded "revive" ad, and an
-/// interstitial ad shown on game over. Uses Unity's LevelPlay mediation SDK.
-/// Attach to an empty GameObject called "AdsManager" in the scene.
-/// </summary>
+
 public class AdsManager : MonoBehaviour
 {
     public static AdsManager Instance { get; private set; }
@@ -72,7 +68,7 @@ public class AdsManager : MonoBehaviour
         isSdkInitialized = false;
     }
 
-    // --- Rewarded Ad (Revive) ---
+    //Rewarded Ad
 
     private void SetupRewardedAd()
     {
@@ -86,10 +82,7 @@ public class AdsManager : MonoBehaviour
         rewardedAd.LoadAd();
     }
 
-    /// <summary>
-    /// Call this when the player taps a "Watch Ad to Revive" button.
-    /// If no ad is ready, does nothing (button should ideally be hidden/disabled in that case).
-    /// </summary>
+    
     public void ShowRewardedAd()
     {
         if (rewardedAd != null && rewardedAd.IsAdReady())
@@ -107,7 +100,7 @@ public class AdsManager : MonoBehaviour
         return rewardedAd != null && rewardedAd.IsAdReady();
     }
 
-    // --- Interstitial Ad (Game Over) ---
+    //Interstitial Ad
 
     private void SetupInterstitialAd()
     {
@@ -120,10 +113,7 @@ public class AdsManager : MonoBehaviour
         interstitialAd.LoadAd();
     }
 
-    /// <summary>
-    /// Call this on game over to show an interstitial ad. Safe to call even if
-    /// no ad is ready - it simply won't show anything in that case.
-    /// </summary>
+
     public void ShowInterstitialAd()
     {
         if (interstitialAd != null && interstitialAd.IsAdReady())

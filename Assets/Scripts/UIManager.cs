@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Handles all UI panels: Main Menu, live score, Game Over/Win, and their buttons.
+/// Handles all UI panels: Main Menu, live score, Game Over/Win, Revive Offer, and their buttons.
 /// Attach to the Canvas GameObject (or a dedicated "UIManager" empty GameObject under it).
 /// </summary>
 public class UIManager : MonoBehaviour
@@ -36,6 +36,16 @@ public class UIManager : MonoBehaviour
 
     [Tooltip("TextMeshPro text showing the best-ever score on the Game Over panel")]
     public TextMeshProUGUI gameOverHighScoreText;
+
+    [Header("Revive Offer")]
+    [Tooltip("Panel shown right after death, offering a rewarded-ad revive, before Game Over is finalized")]
+    public GameObject reviveOfferPanel;
+
+    [Tooltip("Button on the Revive Offer panel - watches a rewarded ad to revive")]
+    public Button watchAdButton;
+
+    [Tooltip("Button on the Revive Offer panel - declines the offer and goes to normal Game Over")]
+    public Button noThanksButton;
 
     [Header("Buttons")]
     [Tooltip("Restart button on the Game Over panel")]
@@ -79,9 +89,24 @@ public class UIManager : MonoBehaviour
             quitButton.onClick.AddListener(HandleQuitClicked);
         }
 
+        if (watchAdButton != null)
+        {
+            watchAdButton.onClick.AddListener(HandleWatchAdClicked);
+        }
+
+        if (noThanksButton != null)
+        {
+            noThanksButton.onClick.AddListener(HandleNoThanksClicked);
+        }
+
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(false);
+        }
+
+        if (reviveOfferPanel != null)
+        {
+            reviveOfferPanel.SetActive(false);
         }
 
         ShowMainMenu();
@@ -97,6 +122,11 @@ public class UIManager : MonoBehaviour
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(false);
+        }
+
+        if (reviveOfferPanel != null)
+        {
+            reviveOfferPanel.SetActive(false);
         }
 
         if (highScoreText != null)
@@ -202,11 +232,53 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Shows the "Watch Ad to Revive?" offer panel. Called right after death,
+    /// instead of Game Over, when a rewarded ad is ready.
+    /// </summary>
+    public void ShowReviveOffer()
+    {
+        if (reviveOfferPanel != null)
+        {
+            reviveOfferPanel.SetActive(true);
+        }
+    }
+
+    /// <summary>
+    /// Hides the Revive Offer panel - called once the player picks an option
+    /// (or once a revive is actually granted).
+    /// </summary>
+    public void HideReviveOffer()
+    {
+        if (reviveOfferPanel != null)
+        {
+            reviveOfferPanel.SetActive(false);
+        }
+    }
+
     private void HandleRestartClicked()
     {
         if (GameManager.Instance != null)
         {
             GameManager.Instance.RestartGame();
+        }
+    }
+
+    private void HandleWatchAdClicked()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnWatchAdButtonPressed();
+        }
+    }
+
+    private void HandleNoThanksClicked()
+    {
+        HideReviveOffer();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnNoThanksButtonPressed();
         }
     }
 }
