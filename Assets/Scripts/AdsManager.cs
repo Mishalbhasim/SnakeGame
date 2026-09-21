@@ -1,25 +1,29 @@
 using UnityEngine;
-using Unity.Services.LevelPlay;
+using GoogleMobileAds.Api;
 
-
+/// <summary>
+/// Handles AdMob rewarded (revive) and interstitial (game over) ads.
+/// Currently using Google's official TEST ad unit IDs - these always return
+/// real test ads regardless of AdMob account review status. Swap in the real
+/// ad unit IDs (see comments below) once this is confirmed working end-to-end.
+/// </summary>
 public class AdsManager : MonoBehaviour
 {
     public static AdsManager Instance { get; private set; }
 
-    [Header("LevelPlay IDs")]
-    [Tooltip("From the Unity Dashboard > Monetization > Apps page.")]
-    public string appKey = "800373542";
+    [Header("Ad Unit IDs (currently TEST IDs)")]
+    [Tooltip("Official Google test ID - always serves a test rewarded ad")]
+    public string rewardedAdUnitId = "ca-app-pub-3940256099942544/5224354917";
 
-    [Tooltip("Placement ID for the rewarded 'revive' ad.")]
-    public string rewardedPlacementId = "BP_Rewarded_Android";
+    [Tooltip("Official Google test ID - always serves a test interstitial ad")]
+    public string interstitialAdUnitId = "ca-app-pub-3940256099942544/1033173712";
 
-    [Tooltip("Placement ID for the interstitial ad shown on game over.")]
-    public string interstitialPlacementId = "gameover_interstitial";
+    // Real IDs, for later once test ads are confirmed working:
+    // rewardedAdUnitId     = "ca-app-pub-5547868366005717/7708097998"
+    // interstitialAdUnitId = "ca-app-pub-5547868366005717/6823672999"
 
-    private LevelPlayRewardedAd rewardedAd;
-    private LevelPlayInterstitialAd interstitialAd;
-
-    private bool isSdkInitialized = false;
+    private RewardedAd rewardedAd;
+    private InterstitialAd interstitialAd;
 
     // GameManager listens for this to know when a revive was actually earned
     public delegate void RevivedGranted();
@@ -38,56 +42,62 @@ public class AdsManager : MonoBehaviour
 
     private void Start()
     {
-        InitializeAds();
+        Debug.Log("AdsManager: about to call MobileAds.Initialize()");
+
+        MobileAds.Initialize(initStatus =>
+        {
+            Debug.Log("AdsManager: MobileAds SDK initialized.");
+            LoadRewardedAd();
+            LoadInterstitialAd();
+        });
     }
 
-    private void InitializeAds()
+    // Rewarded Ad
+
+    private void LoadRewardedAd()
     {
-        Debug.Log("AdsManager: about to call LevelPlay.Init()");
+        if (rewardedAd != null)
+        {
+            rewardedAd.Destroy();
+            rewardedAd = null;
+        }
 
-        LevelPlay.OnInitSuccess += OnInitSuccess;
-        LevelPlay.OnInitFailed += OnInitFailed;
+        AdRequest request = new AdRequest();
 
-        LevelPlay.Init(appKey);
+        RewardedAd.Load(rewardedAdUnitId, request, (RewardedAd ad, LoadAdError error) =>
+        {
+            if (error != null || ad == null)
+            {
+                Debug.LogWarning("Rewarded ad failed to load: " + error);
+                return;
+            }
 
-        Debug.Log("AdsManager: LevelPlay.Init() call completed (this doesn't mean init succeeded, just that the call was made)");
+            Debug.Log("Rewarded ad loaded.");
+            rewardedAd = ad;
+
+            rewardedAd.OnAdFullScreenContentClosed += () =>
+            {
+                // Preload the next one regardless of outcome.
+                LoadRewardedAd();
+            };
+
+            rewardedAd.OnAdFullScreenContentFailed += (AdError err) =>
+            {
+                Debug.LogWarning("Rewarded ad failed to show: " + err);
+                LoadRewardedAd();
+            };
+        });
     }
 
-    private void OnInitSuccess(LevelPlayConfiguration config)
-    {
-        Debug.Log("LevelPlay SDK initialized successfully.");
-        isSdkInitialized = true;
-
-        SetupRewardedAd();
-        SetupInterstitialAd();
-    }
-
-    private void OnInitFailed(LevelPlayInitError error)
-    {
-        Debug.LogWarning("LevelPlay SDK failed to initialize: " + error);
-        isSdkInitialized = false;
-    }
-
-    //Rewarded Ad
-
-    private void SetupRewardedAd()
-    {
-        rewardedAd = new LevelPlayRewardedAd(rewardedPlacementId);
-
-        rewardedAd.OnAdLoaded += (LevelPlayAdInfo info) => Debug.Log("Rewarded ad loaded.");
-        rewardedAd.OnAdLoadFailed += (LevelPlayAdError error) => Debug.LogWarning("Rewarded ad failed to load: " + error);
-        rewardedAd.OnAdRewarded += (LevelPlayAdInfo info, LevelPlayReward reward) => OnRevivedGranted?.Invoke();
-        rewardedAd.OnAdDisplayFailed += (LevelPlayAdInfo info, LevelPlayAdError error) => Debug.LogWarning("Rewarded ad failed to show: " + error);
-
-        rewardedAd.LoadAd();
-    }
-
-    
     public void ShowRewardedAd()
     {
-        if (rewardedAd != null && rewardedAd.IsAdReady())
+        if (rewardedAd != null && rewardedAd.CanShowAd())
         {
-            rewardedAd.ShowAd();
+            rewardedAd.Show((Reward reward) =>
+            {
+                // Player watched the ad to completion - grant the revive.
+                OnRevivedGranted?.Invoke();
+            });
         }
         else
         {
@@ -97,28 +107,54 @@ public class AdsManager : MonoBehaviour
 
     public bool IsRewardedAdReady()
     {
-        return rewardedAd != null && rewardedAd.IsAdReady();
+        return rewardedAd != null && rewardedAd.CanShowAd();
     }
 
-    //Interstitial Ad
+    // Interstitial Ad
 
-    private void SetupInterstitialAd()
+    private void LoadInterstitialAd()
     {
-        interstitialAd = new LevelPlayInterstitialAd(interstitialPlacementId);
+        if (interstitialAd != null)
+        {
+            interstitialAd.Destroy();
+            interstitialAd = null;
+        }
 
-        interstitialAd.OnAdLoaded += (LevelPlayAdInfo info) => Debug.Log("Interstitial ad loaded.");
-        interstitialAd.OnAdLoadFailed += (LevelPlayAdError error) => Debug.LogWarning("Interstitial ad failed to load: " + error);
-        interstitialAd.OnAdClosed += (LevelPlayAdInfo info) => interstitialAd.LoadAd(); // preload the next one
+        AdRequest request = new AdRequest();
 
-        interstitialAd.LoadAd();
+        InterstitialAd.Load(interstitialAdUnitId, request, (InterstitialAd ad, LoadAdError error) =>
+        {
+            if (error != null || ad == null)
+            {
+                Debug.LogWarning("Interstitial ad failed to load: " + error);
+                return;
+            }
+
+            Debug.Log("Interstitial ad loaded.");
+            interstitialAd = ad;
+
+            interstitialAd.OnAdFullScreenContentClosed += () =>
+            {
+                LoadInterstitialAd(); // preload the next one
+            };
+
+            interstitialAd.OnAdFullScreenContentFailed += (AdError err) =>
+            {
+                Debug.LogWarning("Interstitial ad failed to show: " + err);
+                LoadInterstitialAd();
+            };
+        });
     }
-
 
     public void ShowInterstitialAd()
     {
-        if (interstitialAd != null && interstitialAd.IsAdReady())
+        if (interstitialAd != null && interstitialAd.CanShowAd())
         {
-            interstitialAd.ShowAd();
+            interstitialAd.Show();
+        }
+        else
+        {
+            Debug.LogWarning("Interstitial ad not ready yet.");
         }
     }
 }
