@@ -4,10 +4,24 @@
 /// Central game state controller: tracks score, listens for the snake's
 /// eat/die events, and tells the UI when to update or show Game Over.
 /// Attach to an empty GameObject called "GameManager" in the scene.
+///
+/// Uses an explicit state machine (GameState enum) for its own state, and
+/// broadcasts events (OnScoreChanged, OnGameOver, etc.) rather than calling
+/// UIManager directly - UIManager subscribes to these, the same way
+/// GameManager itself subscribes to SnakeController/FoodSpawner/AdsManager
+/// events. GameManager never needs to know UIManager exists.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
+
+    public enum GameState
+    {
+        MainMenu,
+        Playing,
+        ReviveOffer,
+        GameOver
+    }
 
     [Header("References")]
     [Tooltip("Drag the Snake GameObject here")]
@@ -21,10 +35,25 @@ public class GameManager : MonoBehaviour
     public int pointsPerFood = 10;
 
     public int CurrentScore { get; private set; }
-    public bool IsGameOver { get; private set; }
+    public GameState CurrentState { get; private set; } = GameState.MainMenu;
 
-    // Whether the player has already used their one revive for this game.
+    public bool IsGameOver => CurrentState == GameState.GameOver;
+
     private bool hasUsedRevive;
+
+    // Events UIManager (or anything else) can subscribe to, instead of
+    // GameManager calling into UIManager directly.
+    public delegate void ScoreChanged(int newScore);
+    public static event ScoreChanged OnScoreChanged;
+
+    public delegate void GameOverEvent(int finalScore, bool isWin);
+    public static event GameOverEvent OnGameOver;
+
+    public delegate void SimpleEvent();
+    public static event SimpleEvent OnGameStarted;
+    public static event SimpleEvent OnGameOverHidden;
+    public static event SimpleEvent OnReviveOfferShown;
+    public static event SimpleEvent OnReviveOfferHidden;
 
     private void Awake()
     {
@@ -54,10 +83,7 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // Don't auto-start the game anymore - the Main Menu is shown first
-        // (handled by UIManager.Start -> ShowMainMenu). The snake/food are
-        // still reset once so they're in a valid state sitting behind the menu.
-        IsGameOver = true;
+        CurrentState = GameState.MainMenu;
         CurrentScore = 0;
 
         if (snakeController != null)
@@ -76,15 +102,14 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void StartNewGame()
     {
+        OnGameStarted?.Invoke();
+
         CurrentScore = 0;
-        IsGameOver = false;
+        CurrentState = GameState.Playing;
         hasUsedRevive = false;
 
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.UpdateScore(CurrentScore);
-            UIManager.Instance.HideGameOver();
-        }
+        OnScoreChanged?.Invoke(CurrentScore);
+        OnGameOverHidden?.Invoke();
 
         if (snakeController != null)
         {
@@ -101,19 +126,15 @@ public class GameManager : MonoBehaviour
 
     private void HandleFoodEaten()
     {
-        if (IsGameOver) return;
+        if (CurrentState != GameState.Playing) return;
 
         CurrentScore += pointsPerFood;
-
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.UpdateScore(CurrentScore);
-        }
+        OnScoreChanged?.Invoke(CurrentScore);
     }
 
     private void HandleSnakeDied()
     {
-        if (IsGameOver) return; // avoid double-trigger
+        if (CurrentState != GameState.Playing) return; // avoid double-trigger
 
         bool reviveAvailable = !hasUsedRevive
             && AdsManager.Instance != null
@@ -131,23 +152,16 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// Called when the snake dies and a rewarded "revive" ad is ready to show.
-    /// Game stays paused-but-not-over here: the player is asked whether they
-    /// want to watch an ad to continue.
-    ///
-    /// TODO (next step): replace the Debug.Log below with
-    /// UIManager.Instance.ShowReviveOffer() once that panel exists. Nothing
-    /// else in this file needs to change when that happens.
+    /// Enters the ReviveOffer state and broadcasts OnReviveOfferShown.
     /// </summary>
     private void OfferRevive()
     {
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.ShowReviveOffer();
-        }
+        CurrentState = GameState.ReviveOffer;
+        OnReviveOfferShown?.Invoke();
     }
 
     /// <summary>
-    /// Wire this to the future "Watch Ad" button's OnClick().
+    /// Wire this to the "Watch Ad" button's OnClick().
     /// </summary>
     public void OnWatchAdButtonPressed()
     {
@@ -158,29 +172,26 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Wire this to the future "No Thanks" button's OnClick().
+    /// Wire this to the "No Thanks" button's OnClick().
     /// </summary>
     public void OnNoThanksButtonPressed()
     {
-        FinalizeGameOver(false);
+        // Player already saw revive offer, declined. No interstitial here -
+        // stacking interstitial right after a declined rewarded offer feels
+        // punishing, defeats point of offering choice at all.
+        FinalizeGameOver(false, showInterstitial: false);
     }
 
     /// <summary>
-    /// Fires when AdsManager confirms the player actually earned the reward
-    /// (i.e. watched the rewarded ad to completion). Revives the snake and
-    /// lets the game continue - does NOT reset score.
-    ///
-    /// TODO (next step): also call UIManager.Instance.HideReviveOffer() here
-    /// once that panel exists.
+    /// Fires when AdsManager confirms the player actually earned the reward.
+    /// Revives the snake, returns to Playing, and broadcasts OnReviveOfferHidden.
     /// </summary>
     private void HandleRevivedGranted()
     {
         hasUsedRevive = true;
+        CurrentState = GameState.Playing;
 
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.HideReviveOffer();
-        }
+        OnReviveOfferHidden?.Invoke();
 
         if (snakeController != null)
         {
@@ -190,29 +201,30 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// Called when the snake fills every cell on the grid - the win condition.
-    /// Still ends the game and still shows/submits the final score, just with a
-    /// different message than a death.
     /// </summary>
     private void HandleGridFull()
     {
-        if (IsGameOver) return;
+        if (CurrentState != GameState.Playing) return;
 
         FinalizeGameOver(true);
     }
 
-    private void FinalizeGameOver(bool isWin)
+    /// <summary>
+    /// Single place where a game actually ends: enters GameOver state,
+    /// optionally shows an interstitial ad (loss only, and only when player
+    /// never got a revive offer - see showInterstitial param), broadcasts
+    /// OnGameOver.
+    /// </summary>
+    private void FinalizeGameOver(bool isWin, bool showInterstitial = true)
     {
-        IsGameOver = true;
+        CurrentState = GameState.GameOver;
 
-        if (!isWin && AdsManager.Instance != null)
+        if (!isWin && showInterstitial && AdsManager.Instance != null)
         {
             AdsManager.Instance.ShowInterstitialAd();
         }
 
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.ShowGameOver(CurrentScore, isWin);
-        }
+        OnGameOver?.Invoke(CurrentScore, isWin);
     }
 
     /// <summary>

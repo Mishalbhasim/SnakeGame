@@ -4,6 +4,10 @@ using UnityEngine;
 
 public class SnakeController : MonoBehaviour
 {
+    public static SnakeController Instance { get; private set; }
+
+    public int CurrentLength => segments.Count;
+
     [Header("Setup")]
     [Tooltip("Prefab used for every segment of the snake, including the head")]
     public GameObject segmentPrefab;
@@ -34,6 +38,16 @@ public class SnakeController : MonoBehaviour
 
     public delegate void SnakeDied();
     public static event SnakeDied OnSnakeDied;
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+    }
 
     private void Start()
     {
@@ -132,7 +146,7 @@ public class SnakeController : MonoBehaviour
             pendingDirection = Vector2Int.right;
     }
 
- 
+
 
     public void OnUpPressed()
     {
