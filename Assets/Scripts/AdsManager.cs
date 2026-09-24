@@ -1,12 +1,7 @@
 using UnityEngine;
 using GoogleMobileAds.Api;
 
-/// <summary>
-/// Handles AdMob rewarded (revive) and interstitial (game over) ads.
-/// Currently using Google's official TEST ad unit IDs - these always return
-/// real test ads regardless of AdMob account review status. Swap in the real
-/// ad unit IDs (see comments below) once this is confirmed working end-to-end.
-/// </summary>
+
 public class AdsManager : MonoBehaviour
 {
     public static AdsManager Instance { get; private set; }
@@ -18,14 +13,11 @@ public class AdsManager : MonoBehaviour
     [Tooltip("Official Google test ID - always serves a test interstitial ad")]
     public string interstitialAdUnitId = "ca-app-pub-3940256099942544/1033173712";
 
-    // Real IDs, for later once test ads are confirmed working:
-    // rewardedAdUnitId     = "ca-app-pub-5547868366005717/7708097998"
-    // interstitialAdUnitId = "ca-app-pub-5547868366005717/6823672999"
+
 
     private RewardedAd rewardedAd;
     private InterstitialAd interstitialAd;
 
-    // GameManager listens for this to know when a revive was actually earned
     public delegate void RevivedGranted();
     public static event RevivedGranted OnRevivedGranted;
 
@@ -95,7 +87,7 @@ public class AdsManager : MonoBehaviour
         {
             rewardedAd.Show((Reward reward) =>
             {
-                // Player watched the ad to completion - grant the revive.
+                // if watched give reward
                 OnRevivedGranted?.Invoke();
             });
         }

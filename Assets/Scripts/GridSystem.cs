@@ -13,8 +13,6 @@ public class GridSystem : MonoBehaviour
     [Tooltip("World-space size of one cell (keep at 1 for simplicity)")]
     public float cellSize = 1f;
 
-    // Singleton-style access so other scripts (Snake, Food, GameManager) can
-    // easily query grid info without dragging references around in the Inspector.
     public static GridSystem Instance { get; private set; }
 
     private void Awake()

@@ -2,20 +2,11 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 
-/// <summary>
-/// Small toast-style popup that appears whenever an achievement unlocks,
-/// then auto-hides after a few seconds. Listens to
-/// AchievementManager.OnAchievementUnlocked directly - works no matter
-/// where in the game the achievement unlocks (mid-gameplay, menu, etc.),
-/// independent of whether the Achievements list screen is open.
-/// Attach this script to a small popup GameObject living directly under
-/// the Canvas (sibling of MainMenuPanel/GameOverPanel, not inside them),
-/// so it can appear over anything.
-/// </summary>
+
 public class AchievementPopupUI : MonoBehaviour
 {
     [Header("Popup")]
-    public GameObject popupRoot; // Usually this same GameObject.
+    public GameObject popupRoot; 
     public TextMeshProUGUI titleText;
     public TextMeshProUGUI descriptionText;
 

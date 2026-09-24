@@ -32,7 +32,7 @@ public class SnakeController : MonoBehaviour
     private float moveTimer = 0f;
     private bool isDead = false;
 
-    // Other scripts (GameManager) subscribe to these
+    
     public delegate void FoodEaten();
     public static event FoodEaten OnFoodEaten;
 
@@ -67,22 +67,31 @@ public class SnakeController : MonoBehaviour
     }
 
 
+    
     public void Revive()
     {
-        ClearSegments();
-
-        direction = Vector2Int.right;
-        pendingDirection = Vector2Int.right;
         isDead = false;
-        moveTimer = 0f;
 
-        BuildBodyAtSafeSpawn();
-
-        // Existing food may now overlap the newly-placed body - make sure it doesn't.
-        if (FoodSpawner.Instance != null)
+        Vector2Int head = segmentGridPositions[0];
+        Vector2Int[] candidates =
         {
-            FoodSpawner.Instance.SpawnFood(segmentGridPositions);
+            Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right
+        };
+
+        foreach (Vector2Int candidate in candidates)
+        {
+            if (candidate == -direction) continue; 
+
+            Vector2Int next = head + candidate;
+            if (!GridSystem.Instance.IsInsideGrid(next)) continue;
+            if (segmentGridPositions.Contains(next)) continue;
+
+            direction = candidate;
+            pendingDirection = candidate;
+            break;
         }
+
+        moveTimer = -0.5f;
     }
 
     private void ClearSegments()
@@ -97,16 +106,13 @@ public class SnakeController : MonoBehaviour
 
     private void BuildBodyAtSafeSpawn()
     {
-        // Auto-center on the grid if startPosition wasn't explicitly set, so this
-        // works correctly regardless of the grid's width/height (e.g. testing on a
-        // small 4x4 grid vs. the real 20x20 grid).
+      
         Vector2Int spawnPos = startPosition;
         if (spawnPos == Vector2Int.zero)
         {
             spawnPos = new Vector2Int(GridSystem.Instance.width / 2, GridSystem.Instance.height / 2);
         }
 
-        // Build initial segments extending to the left of the start position
         for (int i = 0; i < startLength; i++)
         {
             Vector2Int gridPos = new Vector2Int(spawnPos.x - i, spawnPos.y);
@@ -134,8 +140,7 @@ public class SnakeController : MonoBehaviour
 
     private void HandleInput()
     {
-        // Keyboard input for testing
-        // Prevents reversing directly into itself.
+    
         if ((Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) && direction != Vector2Int.down)
             pendingDirection = Vector2Int.up;
         else if ((Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) && direction != Vector2Int.up)

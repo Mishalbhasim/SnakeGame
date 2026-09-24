@@ -1,16 +1,6 @@
 ﻿using UnityEngine;
 
-/// <summary>
-/// Central game state controller: tracks score, listens for the snake's
-/// eat/die events, and tells the UI when to update or show Game Over.
-/// Attach to an empty GameObject called "GameManager" in the scene.
-///
-/// Uses an explicit state machine (GameState enum) for its own state, and
-/// broadcasts events (OnScoreChanged, OnGameOver, etc.) rather than calling
-/// UIManager directly - UIManager subscribes to these, the same way
-/// GameManager itself subscribes to SnakeController/FoodSpawner/AdsManager
-/// events. GameManager never needs to know UIManager exists.
-/// </summary>
+
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
@@ -41,8 +31,6 @@ public class GameManager : MonoBehaviour
 
     private bool hasUsedRevive;
 
-    // Events UIManager (or anything else) can subscribe to, instead of
-    // GameManager calling into UIManager directly.
     public delegate void ScoreChanged(int newScore);
     public static event ScoreChanged OnScoreChanged;
 
@@ -97,9 +85,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Resets score/state and restarts the snake. Called at launch and on Restart button press.
-    /// </summary>
+
     public void StartNewGame()
     {
         OnGameStarted?.Invoke();
@@ -134,7 +120,7 @@ public class GameManager : MonoBehaviour
 
     private void HandleSnakeDied()
     {
-        if (CurrentState != GameState.Playing) return; // avoid double-trigger
+        if (CurrentState != GameState.Playing) return; 
 
         bool reviveAvailable = !hasUsedRevive
             && AdsManager.Instance != null
@@ -150,19 +136,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Called when the snake dies and a rewarded "revive" ad is ready to show.
-    /// Enters the ReviveOffer state and broadcasts OnReviveOfferShown.
-    /// </summary>
+
     private void OfferRevive()
     {
         CurrentState = GameState.ReviveOffer;
         OnReviveOfferShown?.Invoke();
     }
 
-    /// <summary>
-    /// Wire this to the "Watch Ad" button's OnClick().
-    /// </summary>
+
     public void OnWatchAdButtonPressed()
     {
         if (AdsManager.Instance != null)
@@ -171,21 +152,14 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Wire this to the "No Thanks" button's OnClick().
-    /// </summary>
+ 
     public void OnNoThanksButtonPressed()
     {
-        // Player already saw revive offer, declined. No interstitial here -
-        // stacking interstitial right after a declined rewarded offer feels
-        // punishing, defeats point of offering choice at all.
+       
         FinalizeGameOver(false, showInterstitial: false);
     }
 
-    /// <summary>
-    /// Fires when AdsManager confirms the player actually earned the reward.
-    /// Revives the snake, returns to Playing, and broadcasts OnReviveOfferHidden.
-    /// </summary>
+
     private void HandleRevivedGranted()
     {
         hasUsedRevive = true;
@@ -199,9 +173,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Called when the snake fills every cell on the grid - the win condition.
-    /// </summary>
+    
     private void HandleGridFull()
     {
         if (CurrentState != GameState.Playing) return;
@@ -209,12 +181,7 @@ public class GameManager : MonoBehaviour
         FinalizeGameOver(true);
     }
 
-    /// <summary>
-    /// Single place where a game actually ends: enters GameOver state,
-    /// optionally shows an interstitial ad (loss only, and only when player
-    /// never got a revive offer - see showInterstitial param), broadcasts
-    /// OnGameOver.
-    /// </summary>
+
     private void FinalizeGameOver(bool isWin, bool showInterstitial = true)
     {
         CurrentState = GameState.GameOver;
@@ -227,9 +194,7 @@ public class GameManager : MonoBehaviour
         OnGameOver?.Invoke(CurrentScore, isWin);
     }
 
-    /// <summary>
-    /// Called by the Restart button via UIManager.
-    /// </summary>
+
     public void RestartGame()
     {
         StartNewGame();

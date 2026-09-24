@@ -2,13 +2,7 @@ using UnityEngine;
 using Unity.Services.Analytics;
 using Unity.Services.Core;
 
-/// <summary>
-/// Records gameplay analytics events. Fully decoupled from GameManager -
-/// it listens to the same events GameManager broadcasts (OnGameStarted,
-/// OnGameOver) plus SnakeController's OnFoodEaten directly. GameManager
-/// never needs to know this script exists.
-/// Attach to an empty GameObject called "AnalyticsManager" in the scene.
-/// </summary>
+
 public class AnalyticsManager : MonoBehaviour
 {
     public static AnalyticsManager Instance { get; private set; }
@@ -24,15 +18,11 @@ public class AnalyticsManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    // Cached at the start of each run so the OnGameOver handler doesn't race
-    // UIManager's own PlayerPrefs["HighScore"] write (handler order across
-    // scripts isn't guaranteed).
+
     private int highScoreAtRunStart;
     private float runStartTime;
 
-    // True while a revive offer is on screen and hasn't been accepted yet.
-    // Used to infer "declined" (No Thanks OR ad unavailable) when GameOver
-    // fires without OnReviveOfferHidden having fired first.
+
     private bool reviveOfferPending;
 
     private void OnEnable()
@@ -87,8 +77,7 @@ public class AnalyticsManager : MonoBehaviour
 
     private void HandleGameOver(int finalScore, bool isWin)
     {
-        // If an offer was shown but never accepted, the player declined
-        // (or the ad was unavailable) before GameOver fired.
+        
         if (reviveOfferPending)
         {
             reviveOfferPending = false;

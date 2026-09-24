@@ -2,12 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// Handles all UI panels: Main Menu, live score, Game Over/Win, Revive Offer, and their buttons.
-/// Subscribes to GameManager's events (OnScoreChanged, OnGameOver, etc.) rather than being
-/// called into directly - GameManager never needs to know this script exists.
-/// Attach to the Canvas GameObject (or a dedicated "UIManager" empty GameObject under it).
-/// </summary>
+
 public class UIManager : MonoBehaviour
 {
     public static UIManager Instance { get; private set; }
@@ -120,7 +115,7 @@ public class UIManager : MonoBehaviour
         ShowMainMenu();
     }
 
-    // Event handlers - these replace the old public methods GameManager used to call directly.
+
 
     private void HandleScoreChanged(int newScore)
     {
@@ -134,10 +129,7 @@ public class UIManager : MonoBehaviour
     {
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
-        // Any path to GameOver (decline, no-offer-available, or win) means
-        // ReviveOfferPanel is no longer relevant - close it here too, not
-        // just on the accept path (OnReviveOfferHidden). Harmless no-op if
-        // it's already hidden.
+   
         if (reviveOfferPanel != null) reviveOfferPanel.SetActive(false);
 
         int best = PlayerPrefs.GetInt("HighScore", 0);
@@ -179,8 +171,7 @@ public class UIManager : MonoBehaviour
         if (reviveOfferPanel != null) reviveOfferPanel.SetActive(false);
     }
 
-    // Button click handlers - direct calls to GameManager, since these are
-    // one specific action per click, not broadcasts.
+
 
     private void HandleRestartClicked()
     {

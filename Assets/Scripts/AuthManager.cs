@@ -3,14 +3,7 @@ using System.Threading.Tasks;
 using Unity.Services.Core;
 using Unity.Services.Authentication;
 
-/// <summary>
-/// Single shared owner of UGS sign-in. AchievementManager and LeaderboardManager
-/// both call EnsureSignedIn() instead of signing in themselves - this caches the
-/// actual in-flight Task, so if both call it around the same time, the second
-/// caller awaits the same sign-in operation instead of racing to start a new one
-/// (which is what was causing "player is already signing in" errors).
-/// Attach to an empty GameObject called "AuthManager" in the scene.
-/// </summary>
+
 public class AuthManager : MonoBehaviour
 {
     public static AuthManager Instance { get; private set; }
@@ -28,13 +21,29 @@ public class AuthManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    public Task EnsureSignedIn()
+
+    public async Task EnsureSignedIn()
     {
         if (signInTask == null)
         {
             signInTask = SignInInternal();
         }
-        return signInTask;
+
+        Task thisAttempt = signInTask;
+
+        try
+        {
+            await thisAttempt;
+        }
+        catch
+        {
+            // Only clear if no newer attempt has already replaced it.
+            if (signInTask == thisAttempt)
+            {
+                signInTask = null;
+            }
+            throw;
+        }
     }
 
     private async Task SignInInternal()

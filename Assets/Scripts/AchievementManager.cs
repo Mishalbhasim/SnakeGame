@@ -2,40 +2,24 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Services.CloudSave;
 
-/// <summary>
-/// Tracks and unlocks achievements, persisting them via Unity Cloud Save
-/// (tied to an anonymous authenticated player, so progress survives a
-/// reinstall or switching devices - unlike PlayerPrefs).
-///
-/// Score and Length achievements are open-ended tiers (score_100, score_200,
-/// ... and length_10, length_20, ...), generated and unlocked dynamically
-/// rather than a fixed hardcoded list - so higher tiers unlock naturally as
-/// the player improves, with no upper limit.
-///
-/// Fully decoupled from GameManager/SnakeController: listens to their
-/// existing events rather than being called into directly.
-///
-/// Attach to an empty GameObject called "AchievementManager" in the scene.
-/// </summary>
+
 public class AchievementManager : MonoBehaviour
 {
     public static AchievementManager Instance { get; private set; }
 
     private const string CloudSaveKey = "unlocked_achievements";
 
-    // Fixed, one-off achievement IDs (not tiered).
     public const string FirstBite = "first_bite";
     public const string GridFilled = "grid_filled";
 
     private const int ScoreTierStep = 100;
-    private const int ScoreFirstMilestone = 50; // special one-off before the regular 100-tiers start
+    private const int ScoreFirstMilestone = 50; 
     private const int LengthTierStep = 10;
 
     private HashSet<string> unlockedAchievements = new HashSet<string>();
     private bool foodEatenThisGame = false;
 
-    // Fired whenever a NEW achievement is unlocked - carries display text
-    // directly, so listeners (popup, list screen) don't need a separate lookup.
+    
     public delegate void AchievementUnlocked(string achievementId, string title, string description);
     public static event AchievementUnlocked OnAchievementUnlocked;
 
@@ -68,8 +52,15 @@ public class AchievementManager : MonoBehaviour
 
     private async void Start()
     {
-        await AuthManager.Instance.EnsureSignedIn();
-        await LoadUnlockedAchievements();
+        try
+        {
+            await AuthManager.Instance.EnsureSignedIn();
+            await LoadUnlockedAchievements();
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("AchievementManager: could not load achievements (offline?) - " + e.Message);
+        }
     }
 
     private async System.Threading.Tasks.Task LoadUnlockedAchievements()
@@ -79,7 +70,9 @@ public class AchievementManager : MonoBehaviour
         if (result.TryGetValue(CloudSaveKey, out var item))
         {
             List<string> saved = item.Value.GetAs<List<string>>();
-            unlockedAchievements = new HashSet<string>(saved);
+
+            
+            unlockedAchievements.UnionWith(saved);
             Debug.Log("AchievementManager: loaded " + unlockedAchievements.Count + " unlocked achievement(s).");
         }
         else
@@ -90,12 +83,21 @@ public class AchievementManager : MonoBehaviour
 
     private async void SaveUnlockedAchievements()
     {
-        var data = new Dictionary<string, object>
+        try
         {
-            { CloudSaveKey, new List<string>(unlockedAchievements) }
-        };
+            await AuthManager.Instance.EnsureSignedIn();
 
-        await CloudSaveService.Instance.Data.Player.SaveAsync(data);
+            var data = new Dictionary<string, object>
+            {
+                { CloudSaveKey, new List<string>(unlockedAchievements) }
+            };
+
+            await CloudSaveService.Instance.Data.Player.SaveAsync(data);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("AchievementManager: could not save achievements (offline?) - " + e.Message);
+        }
     }
 
     private void Unlock(string achievementId)
@@ -116,12 +118,20 @@ public class AchievementManager : MonoBehaviour
         return unlockedAchievements.Contains(achievementId);
     }
 
-    /// <summary>
-    /// Returns a saved achievement's title/description purely by parsing its
-    /// ID - works for any tier (past, current, or future) without needing a
-    /// hardcoded list, since IDs follow a consistent "score_N" / "length_N"
-    /// pattern. Used by the popup and (later) the achievements list screen.
-    /// </summary>
+    public static readonly string[] CoreAchievementIds =
+    {
+        FirstBite,
+        "score_50", "score_100", "score_200", "score_300",
+        "length_10", "length_20", "length_30",
+        GridFilled
+    };
+
+
+    public IEnumerable<string> GetUnlockedIds()
+    {
+        return unlockedAchievements;
+    }
+
     public static (string title, string description) GetDisplayInfo(string achievementId)
     {
         switch (achievementId)
@@ -144,7 +154,7 @@ public class AchievementManager : MonoBehaviour
             return ("Length " + tier, "Reach a snake length of " + tier);
         }
 
-        return (achievementId, ""); // fallback, shouldn't normally happen
+        return (achievementId, ""); 
     }
 
     // Event handlers
@@ -166,10 +176,7 @@ public class AchievementManager : MonoBehaviour
         {
             int length = SnakeController.Instance.CurrentLength;
 
-            // Unlocks every crossed 10-length tier in one pass, in case
-            // growth ever jumps by more than 1 (it doesn't currently, but
-            // this stays correct either way).
-            for (int tier = LengthTierStep; tier <= length; tier += LengthTierStep)
+                for (int tier = LengthTierStep; tier <= length; tier += LengthTierStep)
             {
                 Unlock("length_" + tier);
             }
@@ -209,7 +216,7 @@ public class AchievementManager : MonoBehaviour
         }
         catch (Unity.Services.CloudSave.CloudSaveException e)
         {
-            // 404 just means there was nothing saved yet for this player - not a real error.
+            
             Debug.Log("AchievementManager: nothing to delete (already empty). " + e.Message);
         }
     }
