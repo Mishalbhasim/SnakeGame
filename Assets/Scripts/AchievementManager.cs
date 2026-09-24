@@ -7,12 +7,13 @@ using Unity.Services.CloudSave;
 /// (tied to an anonymous authenticated player, so progress survives a
 /// reinstall or switching devices - unlike PlayerPrefs).
 ///
-/// Fully decoupled from GameManager/SnakeController: listens to their
-/// existing events (SnakeController.OnFoodEaten, GameManager.OnScoreChanged,
-/// GameManager.OnGameOver) rather than being called into directly.
+/// Score and Length achievements are open-ended tiers (score_100, score_200,
+/// ... and length_10, length_20, ...), generated and unlocked dynamically
+/// rather than a fixed hardcoded list - so higher tiers unlock naturally as
+/// the player improves, with no upper limit.
 ///
-/// Sign-in is handled by AuthManager (shared with LeaderboardManager) to
-/// avoid a race condition where two scripts try to sign in at once.
+/// Fully decoupled from GameManager/SnakeController: listens to their
+/// existing events rather than being called into directly.
 ///
 /// Attach to an empty GameObject called "AchievementManager" in the scene.
 /// </summary>
@@ -22,37 +23,20 @@ public class AchievementManager : MonoBehaviour
 
     private const string CloudSaveKey = "unlocked_achievements";
 
-    // The 5 achievement IDs used throughout.
+    // Fixed, one-off achievement IDs (not tiered).
     public const string FirstBite = "first_bite";
-    public const string Score50 = "score_50";
-    public const string Score100 = "score_100";
-    public const string Length20 = "length_20";
     public const string GridFilled = "grid_filled";
 
-
-    [System.Serializable]
-    public struct AchievementDefinition
-    {
-        public string Id;
-        public string Title;
-        public string Description;
-    }
-
-    public static readonly AchievementDefinition[] AllAchievements = new AchievementDefinition[]
-    {
-        new AchievementDefinition { Id = FirstBite, Title = "First Bite", Description = "Eat your first food" },
-        new AchievementDefinition { Id = Score50, Title = "Getting Started", Description = "Reach a score of 50" },
-        new AchievementDefinition { Id = Score100, Title = "Century", Description = "Reach a score of 100" },
-        new AchievementDefinition { Id = Length20, Title = "Growing Strong", Description = "Reach a snake length of 20" },
-        new AchievementDefinition { Id = GridFilled, Title = "Perfectionist", Description = "Fill the entire grid" },
-    };
+    private const int ScoreTierStep = 100;
+    private const int ScoreFirstMilestone = 50; // special one-off before the regular 100-tiers start
+    private const int LengthTierStep = 10;
 
     private HashSet<string> unlockedAchievements = new HashSet<string>();
     private bool foodEatenThisGame = false;
 
-    // Fired whenever a NEW achievement is unlocked - a future UI popup
-    // script can subscribe to this to show a toast/popup.
-    public delegate void AchievementUnlocked(string achievementId);
+    // Fired whenever a NEW achievement is unlocked - carries display text
+    // directly, so listeners (popup, list screen) don't need a separate lookup.
+    public delegate void AchievementUnlocked(string achievementId, string title, string description);
     public static event AchievementUnlocked OnAchievementUnlocked;
 
     private void Awake()
@@ -121,13 +105,46 @@ public class AchievementManager : MonoBehaviour
         unlockedAchievements.Add(achievementId);
         SaveUnlockedAchievements();
 
-        Debug.Log("Achievement unlocked: " + achievementId);
-        OnAchievementUnlocked?.Invoke(achievementId);
+        (string title, string description) = GetDisplayInfo(achievementId);
+
+        Debug.Log("Achievement unlocked: " + achievementId + " (" + title + ")");
+        OnAchievementUnlocked?.Invoke(achievementId, title, description);
     }
 
     public bool IsUnlocked(string achievementId)
     {
         return unlockedAchievements.Contains(achievementId);
+    }
+
+    /// <summary>
+    /// Returns a saved achievement's title/description purely by parsing its
+    /// ID - works for any tier (past, current, or future) without needing a
+    /// hardcoded list, since IDs follow a consistent "score_N" / "length_N"
+    /// pattern. Used by the popup and (later) the achievements list screen.
+    /// </summary>
+    public static (string title, string description) GetDisplayInfo(string achievementId)
+    {
+        switch (achievementId)
+        {
+            case FirstBite:
+                return ("First Bite", "Eat your first food");
+            case GridFilled:
+                return ("Perfectionist", "Fill the entire grid");
+        }
+
+        if (achievementId.StartsWith("score_"))
+        {
+            string tier = achievementId.Substring("score_".Length);
+            return ("Score " + tier, "Reach a score of " + tier);
+        }
+
+        if (achievementId.StartsWith("length_"))
+        {
+            string tier = achievementId.Substring("length_".Length);
+            return ("Length " + tier, "Reach a snake length of " + tier);
+        }
+
+        return (achievementId, ""); // fallback, shouldn't normally happen
     }
 
     // Event handlers
@@ -145,20 +162,56 @@ public class AchievementManager : MonoBehaviour
             Unlock(FirstBite);
         }
 
-        if (SnakeController.Instance != null && SnakeController.Instance.CurrentLength >= 20)
+        if (SnakeController.Instance != null)
         {
-            Unlock(Length20);
+            int length = SnakeController.Instance.CurrentLength;
+
+            // Unlocks every crossed 10-length tier in one pass, in case
+            // growth ever jumps by more than 1 (it doesn't currently, but
+            // this stays correct either way).
+            for (int tier = LengthTierStep; tier <= length; tier += LengthTierStep)
+            {
+                Unlock("length_" + tier);
+            }
         }
     }
 
     private void HandleScoreChanged(int newScore)
     {
-        if (newScore >= 50) Unlock(Score50);
-        if (newScore >= 100) Unlock(Score100);
+        if (newScore >= ScoreFirstMilestone)
+        {
+            Unlock("score_" + ScoreFirstMilestone);
+        }
+
+        for (int tier = ScoreTierStep; tier <= newScore; tier += ScoreTierStep)
+        {
+            Unlock("score_" + tier);
+        }
     }
 
     private void HandleGameOver(int finalScore, bool isWin)
     {
         if (isWin) Unlock(GridFilled);
     }
+
+#if UNITY_EDITOR
+    [ContextMenu("DEV: Reset All Achievements (Cloud + Local)")]
+    private async void ResetAllAchievements()
+    {
+        await AuthManager.Instance.EnsureSignedIn();
+
+        unlockedAchievements.Clear();
+
+        try
+        {
+            await CloudSaveService.Instance.Data.Player.DeleteAsync(CloudSaveKey);
+            Debug.Log("AchievementManager: all achievements reset (cloud + local).");
+        }
+        catch (Unity.Services.CloudSave.CloudSaveException e)
+        {
+            // 404 just means there was nothing saved yet for this player - not a real error.
+            Debug.Log("AchievementManager: nothing to delete (already empty). " + e.Message);
+        }
+    }
+#endif
 }

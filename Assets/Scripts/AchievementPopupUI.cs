@@ -39,27 +39,15 @@ public class AchievementPopupUI : MonoBehaviour
         if (popupRoot != null) popupRoot.SetActive(false);
     }
 
-    private void HandleAchievementUnlocked(string achievementId)
+    private void HandleAchievementUnlocked(string achievementId, string title, string description)
     {
-        AchievementManager.AchievementDefinition def = FindDefinition(achievementId);
-
-        if (titleText != null) titleText.text = def.Title;
-        if (descriptionText != null) descriptionText.text = def.Description;
+        if (titleText != null) titleText.text = title;
+        if (descriptionText != null) descriptionText.text = description;
 
         if (popupRoot != null) popupRoot.SetActive(true);
 
         if (hideRoutine != null) StopCoroutine(hideRoutine);
         hideRoutine = StartCoroutine(HideAfterDelay());
-    }
-
-    private AchievementManager.AchievementDefinition FindDefinition(string achievementId)
-    {
-        foreach (var def in AchievementManager.AllAchievements)
-        {
-            if (def.Id == achievementId) return def;
-        }
-        // Fallback - shouldn't happen unless an ID is unlocked without a matching definition.
-        return new AchievementManager.AchievementDefinition { Id = achievementId, Title = achievementId, Description = "" };
     }
 
     private IEnumerator HideAfterDelay()
@@ -68,4 +56,6 @@ public class AchievementPopupUI : MonoBehaviour
         if (popupRoot != null) popupRoot.SetActive(false);
         hideRoutine = null;
     }
+
+
 }
